@@ -1,0 +1,25 @@
+name: Render Manim Animation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # allow manual triggers from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Render Manim video
+        uses: MengAiDev/manim_workflow@v1.0.0
+        with:
+          file: 'scene.py'
+          scene: 'MyScene'
+          quality: '-qm'
+          output_dir: 'media/videos'
+          python-version: '3.11'
