@@ -6,7 +6,7 @@ on:
   workflow_dispatch:  # allow manual triggers from the Actions tab
 
 permissions:
-  contents: read
+  contents: write  # needed to commit the rendered video back into the repo
 
 jobs:
   render:
@@ -23,3 +23,20 @@ jobs:
           quality: '-qm'
           output_dir: 'media/videos'
           python-version: '3.11'
+
+      - name: Commit the rendered video into the repo
+        run: |
+          set -e
+          mkdir -p rendered
+          SRC=$(find media/videos -type f -name '*.mp4' -not -path '*partial_movie_files*' | head -n 1)
+          echo "Using $SRC"
+          cp "$SRC" rendered/MyScene.mp4
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add rendered/MyScene.mp4
+          if git diff --cached --quiet; then
+            echo "Video unchanged; nothing to commit."
+          else
+            git commit -m "Render MyScene [skip ci]"
+            git push
+          fi
