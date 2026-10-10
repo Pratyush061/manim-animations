@@ -20,13 +20,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from svm_common import *  # noqa: E402,F403
 
 
-def _panel(center, width=4.6, height=3.3):
-    """One comparison panel: axes + the shared scatter."""
-    ax = make_axes(width=width, height=height, center=center)
-    dots = VGroup(scatter(ax, CLASS_A_PTS, CLASS_A), scatter(ax, CLASS_B_PTS, CLASS_B))
-    return ax, dots
-
-
 # Indices of the two points that are the support vectors, within their class.
 IDX_A = int(np.argmin(((CLASS_A_PTS - SV_A) ** 2).sum(1)))
 IDX_B = int(np.argmin(((CLASS_B_PTS - SV_B) ** 2).sum(1)))
@@ -34,8 +27,8 @@ IDX_B = int(np.argmin(((CLASS_B_PTS - SV_B) ** 2).sum(1)))
 
 class S03_NarrowVsWide(SVMScene):
     def construct(self):
-        la, ld = _panel(LEFT * 3.4)
-        ra, rd = _panel(RIGHT * 3.4)
+        la, ld = panel(LEFT * 3.4)
+        ra, rd = panel(RIGHT * 3.4)
         self.play(FadeIn(la), FadeIn(ra), FadeIn(ld), FadeIn(rd), run_time=1.5)
 
         # Same orientation, same centre — only the margin width differs.
@@ -92,8 +85,8 @@ class S04_TheStreet(SVMScene):
 
 class S05_SupportVectors(SVMScene):
     def construct(self):
-        la, ld = _panel(LEFT * 3.4)
-        ra, rd = _panel(RIGHT * 3.4)
+        la, ld = panel(LEFT * 3.4)
+        ra, rd = panel(RIGHT * 3.4)
         self.play(FadeIn(la), FadeIn(ra), FadeIn(ld), FadeIn(rd), run_time=1.5)
 
         street_l = street(la, fill=False)

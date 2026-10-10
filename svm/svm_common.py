@@ -173,6 +173,20 @@ def base_plot(width=6.0, height=3.6, center=DOWN * 0.3, xlim=XLIM, ylim=YLIM, ra
     return ax, dots
 
 
+def panel(center, width=4.6, height=3.3, xlim=XLIM, ylim=YLIM, radius=0.075):
+    """
+    One comparison panel: an axes box plus the shared blob scatter, sized for
+    the side-by-side layouts. Shared by Parts 2 and 4 so both draw the same
+    panels from the same data.
+    """
+    ax = make_axes(width=width, height=height, center=center, xlim=xlim, ylim=ylim)
+    dots = VGroup(
+        scatter(ax, CLASS_A_PTS, CLASS_A, radius),
+        scatter(ax, CLASS_B_PTS, CLASS_B, radius),
+    )
+    return ax, dots
+
+
 def boundary_line(ax, w=W, b=B, xlim=XLIM, ylim=YLIM, **style):
     """The decision boundary ``w·x + b = 0`` as a Line in the axes."""
     seg = line_data_pts(w, b, xlim, ylim)

@@ -26,8 +26,8 @@ T_HAT = np.array([-N_HAT[1], N_HAT[0]])
 
 class S09_WhyWideMargin(SVMScene):
     def construct(self):
-        la, ld = _panel(LEFT * 3.4)
-        ra, rd = _panel(RIGHT * 3.4)
+        la, ld = panel(LEFT * 3.4)
+        ra, rd = panel(RIGHT * 3.4)
         self.play(FadeIn(la), FadeIn(ra), FadeIn(ld), FadeIn(rd), run_time=1.4)
 
         # Narrow model: same orientation, but the boundary is pushed up against
