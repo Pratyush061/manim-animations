@@ -1,0 +1,120 @@
+name: Render SVM Parts 1-2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/render-svm-parts.yml'
+      - 'svm/part-01-hook.py'
+      - 'svm/part-02-margin.py'
+      - 'svm/svm_common.py'
+  workflow_dispatch:  # allow manual triggers from the Actions tab
+
+permissions:
+  contents: write  # needed to commit the rendered videos back into the repo
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential python3-dev pkg-config \
+            libcairo2-dev libpango1.0-dev \
+            ffmpeg dvisvgm \
+            texlive-latex-base texlive-latex-recommended texlive-latex-extra \
+            texlive-fonts-recommended texlive-science
+
+      - name: Install Manim
+        run: |
+          python -m pip install --upgrade pip
+          pip install manim==0.22.0
+          manim --version
+
+      - name: Render and stitch Part 1
+        working-directory: svm
+        run: |
+          set -euo pipefail
+          SCENES="S01_Hook S02_ManyLines"
+          for s in $SCENES; do
+            echo "::group::Part 1 — $s"
+            manim -qm --disable_caching --media_dir media part-01-hook.py "$s"
+            echo "::endgroup::"
+          done
+          mkdir -p concat/part1
+          : > concat/part1/list.txt
+          for s in $SCENES; do
+            f="$(find media/videos -type f -name "${s}.mp4" | head -n1)"
+            if [ -z "$f" ]; then echo "MISSING render for $s"; exit 1; fi
+            echo "file '$PWD/$f'" >> concat/part1/list.txt
+          done
+          ffmpeg -y -f concat -safe 0 -i concat/part1/list.txt -c copy concat/part1/raw.mp4
+          DUR="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 concat/part1/raw.mp4)"
+          VBIT="$(python3 -c "d=float('$DUR'); print(max(250000, int((60*8*1024*1024)/d)))")"
+          mkdir -p ../rendered
+          ffmpeg -y -i concat/part1/raw.mp4 -an \
+            -c:v libx264 -preset slow -b:v "${VBIT}" -maxrate "${VBIT}" -bufsize "$((VBIT*2))" \
+            -pix_fmt yuv420p -movflags +faststart ../rendered/svm-part-01.mp4
+          ls -lh ../rendered/svm-part-01.mp4
+
+      - name: Render and stitch Part 2
+        working-directory: svm
+        run: |
+          set -euo pipefail
+          SCENES="S03_NarrowVsWide S04_TheStreet S05_SupportVectors"
+          for s in $SCENES; do
+            echo "::group::Part 2 — $s"
+            manim -qm --disable_caching --media_dir media part-02-margin.py "$s"
+            echo "::endgroup::"
+          done
+          mkdir -p concat/part2
+          : > concat/part2/list.txt
+          for s in $SCENES; do
+            f="$(find media/videos -type f -name "${s}.mp4" | head -n1)"
+            if [ -z "$f" ]; then echo "MISSING render for $s"; exit 1; fi
+            echo "file '$PWD/$f'" >> concat/part2/list.txt
+          done
+          ffmpeg -y -f concat -safe 0 -i concat/part2/list.txt -c copy concat/part2/raw.mp4
+          DUR="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 concat/part2/raw.mp4)"
+          VBIT="$(python3 -c "d=float('$DUR'); print(max(250000, int((60*8*1024*1024)/d)))")"
+          mkdir -p ../rendered
+          ffmpeg -y -i concat/part2/raw.mp4 -an \
+            -c:v libx264 -preset slow -b:v "${VBIT}" -maxrate "${VBIT}" -bufsize "$((VBIT*2))" \
+            -pix_fmt yuv420p -movflags +faststart ../rendered/svm-part-02.mp4
+          ls -lh ../rendered/svm-part-02.mp4
+
+      - name: Upload artifacts (backup copies)
+        uses: actions/upload-artifact@v4
+        with:
+          name: svm-parts-1-2
+          path: |
+            rendered/svm-part-01.mp4
+            rendered/svm-part-02.mp4
+          if-no-files-found: error
+
+      - name: Commit the rendered videos into the repo
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add rendered/svm-part-01.mp4 rendered/svm-part-02.mp4
+          if git diff --cached --quiet; then
+            echo "Videos unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "Render SVM parts 1-2 [skip ci]"
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash origin main && git push && break
+            echo "push retry $i"; sleep 5
+          done
