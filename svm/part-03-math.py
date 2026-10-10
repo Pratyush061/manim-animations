@@ -36,12 +36,14 @@ class S06_Hyperplane(SVMScene):
         self.play(Create(st), run_time=1.2)
 
         # Submobject layout of the split equation:
-        # [0]=w  [1]=\cdot  [2]=x  [3]=+  [4]=b  [5]="= 0"
-        eq = self.bottom_eq(
-            r"{{\mathbf{w}}}\cdot{{\mathbf{x}}} + {{b}} = 0",
-            font_size=48,
-            tex_to_color_map={r"\mathbf{w}": CLASS_B, "b": CLASS_A},
-        )
+        # [0]=w  [1]=\cdot  [2]=x  [3]=+  [4]=b  [5]="= 0".
+        # Spaces around each {{ }} group are required (an opener must start the
+        # string or follow whitespace), and colours are set by isolated
+        # substring — NOT via tex_to_color_map, whose "b" key would also match
+        # the "b" inside \mathbf and split the command (LaTeX "Bad math").
+        eq = self.bottom_eq(r"{{\mathbf{w}}} \cdot {{\mathbf{x}}} + {{b}} = 0", font_size=48)
+        eq.set_color_by_tex(r"\mathbf{w}", CLASS_B)
+        eq.set_color_by_tex("b", CLASS_A)
         self.play(Write(eq), run_time=1.6)
         self.wait(0.4)
 
