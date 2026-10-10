@@ -1,0 +1,113 @@
+name: Render SVM Explainer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'svm/**'
+      - '.github/workflows/render-svm.yml'
+  workflow_dispatch:  # allow manual triggers from the Actions tab
+
+permissions:
+  contents: write  # needed to commit the rendered video back into the repo
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      # "file:Scene" pairs, in play order.
+      SCENES: >-
+        part-01-hook.py:S01_Hook part-01-hook.py:S02_ManyLines
+        part-02-margin.py:S03_NarrowVsWide part-02-margin.py:S04_TheStreet
+        part-02-margin.py:S05_SupportVectors
+        part-03-math.py:S06_Hyperplane part-03-math.py:S07_Margin
+        part-03-math.py:S08_Optimization
+        part-04-soft-margin.py:S09_WhyWideMargin part-04-soft-margin.py:S10_SoftMargin
+        part-05-kernels.py:S11_TheWall part-05-kernels.py:S12_TheLift
+        part-05-kernels.py:S13_KernelTrick part-05-kernels.py:S14_KernelMenu
+        part-06-recap.py:S15_Recap
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential python3-dev pkg-config \
+            libcairo2-dev libpango1.0-dev \
+            ffmpeg dvisvgm \
+            texlive-latex-base texlive-latex-recommended texlive-latex-extra \
+            texlive-fonts-recommended texlive-science
+
+      - name: Install Manim
+        run: |
+          python -m pip install --upgrade pip
+          pip install manim==0.22.0
+          manim --version
+
+      - name: Render every scene (720p30)
+        working-directory: svm
+        run: |
+          set -euo pipefail
+          for spec in $SCENES; do
+            f="${spec%%:*}"; s="${spec##*:}"
+            echo "::group::Rendering $s ($f)"
+            manim -qm --disable_caching --media_dir media "$f" "$s"
+            echo "::endgroup::"
+          done
+
+      - name: Concatenate scenes into one explainer video
+        working-directory: svm
+        run: |
+          set -euo pipefail
+          mkdir -p concat
+          : > concat/list.txt
+          for spec in $SCENES; do
+            s="${spec##*:}"
+            f="$(find media/videos -type f -name "${s}.mp4" | head -n1)"
+            if [ -z "$f" ]; then echo "MISSING render for $s"; exit 1; fi
+            echo "file '$PWD/$f'" >> concat/list.txt
+          done
+          ffmpeg -y -f concat -safe 0 -i concat/list.txt -c copy concat/svm_raw.mp4
+          DUR="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 concat/svm_raw.mp4)"
+          echo "Raw duration: ${DUR}s"
+          # Re-encode to a bounded bitrate so the committed file stays well under
+          # GitHub's 100 MB push limit (target ~60 MB).
+          VBIT="$(python3 -c "d=float('$DUR'); print(max(250000, int((60*8*1024*1024)/d)))")"
+          echo "Target video bitrate: ${VBIT} b/s"
+          mkdir -p ../rendered
+          ffmpeg -y -i concat/svm_raw.mp4 -an \
+            -c:v libx264 -preset slow -b:v "${VBIT}" -maxrate "${VBIT}" -bufsize "$((VBIT*2))" \
+            -pix_fmt yuv420p -movflags +faststart \
+            ../rendered/svm_explainer.mp4
+          ls -lh ../rendered/svm_explainer.mp4
+
+      - name: Upload artifact (backup copy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: svm-explainer
+          path: rendered/svm_explainer.mp4
+          if-no-files-found: error
+
+      - name: Commit the rendered video into the repo
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add rendered/svm_explainer.mp4
+          if git diff --cached --quiet; then
+            echo "Video unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "Render SVM explainer [skip ci]"
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash origin main && git push && break
+            echo "push retry $i"; sleep 5
+          done
